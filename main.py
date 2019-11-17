@@ -38,11 +38,18 @@ def try_to_subscribe_url(url_item):
         email_fields = driver.find_elements_by_xpath("//input[@type='email']")
         for email_field_item in email_fields:
             try_to_fill_email(email_field_item)
-
-        breakpoint()
-        print(f"Element : {element} for URL : {url_item}")
+        try_to_submit_form()
+        time.sleep(1)
+        print(f"Form submitted for URL: {url_item}")
+        if check_if_recaptcha_present():
+            print("Sorry, recaptcha found.")
+            close_all_tabs()
     except NoSuchElementException as not_found:
         print(f"Element not found for URL : {url_item}")
+
+
+def check_if_recaptcha_present():
+    return len(driver.find_elements_by_xpath("//*[@class='g-recaptcha']")) > 0
 
 
 def page_has_loaded(window_name):
@@ -62,11 +69,20 @@ def wait_all_pages_has_loaded():
 
 def try_to_fill_email(email_input_element):
     try:
-        email_input_element.send_keys("test")
+        email_input_element.send_keys(config.email_for_subscription)
     except ElementNotVisibleException as not_visible:
         print(not_visible)
     except Exception as e:
         print(e)
+
+
+def try_to_submit_form():
+    submit_element_list = driver.find_elements_by_xpath("//*[@type='submit']")
+    for submit_element in submit_element_list:
+        try:
+            submit_element.submit()
+        except Exception as e:
+            print(e)
 
 
 def get_tab_count():
@@ -79,10 +95,10 @@ def close_all_tabs():
 
 
 def main():
-    # url_list = get_urls_list_for_subscribe()
-    # for url in url_list:
-    #     try_to_subscribe_url(url)
-    try_to_subscribe_url("https://frontendfront.com/")
+    url_list = get_urls_list_for_subscribe()
+    for url in url_list:
+        try_to_subscribe_url(url)
+    # try_to_subscribe_url("https://frontendfront.com/")
 
 
 if __name__ == "__main__":
