@@ -1,0 +1,7 @@
+{
+  "input_file": "Подписки.txt",
+  "error_file": "errors.txt",
+  "random_count": 25,
+  "page_load_timeout": 60,
+  "email_for_subscription": "test@test.com"
+}
