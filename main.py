@@ -1,4 +1,6 @@
 import time
+import os
+import re
 import validators
 import random
 from selenium import webdriver
@@ -7,13 +9,21 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import *
 from config import config
+from main_logger import logger
 
-options = Options()
-# options.add_argument('--headless')
-options.add_argument('--disable-gpu')
 
-driver = webdriver.Chrome(options=options)
-driver.set_page_load_timeout(config.page_load_timeout)
+error_file_name = ""
+driver = None
+
+
+def init_driver():
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--disable-gpu')
+
+    global driver
+    driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(config.page_load_timeout)
 
 
 def get_urls_list_for_subscribe():
@@ -40,12 +50,13 @@ def try_to_subscribe_url(url_item):
             try_to_fill_email(email_field_item)
         try_to_submit_form()
         time.sleep(1)
-        print(f"Form submitted for URL: {url_item}")
+        logger.info(f"Form submitted for URL: {url_item}")
         if check_if_recaptcha_present():
-            print("Sorry, recaptcha found.")
+            logger.info("Sorry, recaptcha found.")
             close_all_tabs()
     except NoSuchElementException as not_found:
-        print(f"Element not found for URL : {url_item}")
+        logger.info(f"Element not found for URL : {url_item}")
+        logger.error(not_found, exc_info=True)
 
 
 def check_if_recaptcha_present():
@@ -54,7 +65,7 @@ def check_if_recaptcha_present():
 
 def page_has_loaded(window_name):
     # self.log.info("Checking if {} page is loaded.".format(self.driver.current_url))
-    print("Checking if {} page is loaded.".format(window_name))
+    logger.info("Checking if {} page is loaded.".format(window_name))
     driver.switch_to.window(window_name)
     page_state = driver.execute_script('return document.readyState;')
     return page_state == 'complete'
@@ -71,9 +82,9 @@ def try_to_fill_email(email_input_element):
     try:
         email_input_element.send_keys(config.email_for_subscription)
     except ElementNotVisibleException as not_visible:
-        print(not_visible)
+        logger.error(not_visible, exc_info=True)
     except Exception as e:
-        print(e)
+        logger.error(e, exc_info=True)
 
 
 def try_to_submit_form():
@@ -82,7 +93,7 @@ def try_to_submit_form():
         try:
             submit_element.submit()
         except Exception as e:
-            print(e)
+            logger.error(e, exc_info=True)
 
 
 def get_tab_count():
@@ -94,10 +105,46 @@ def close_all_tabs():
         driver.find_element_by_tag_name('body').send_keys(Keys.COMMAND + 'W')
 
 
+def create_error_file():
+    pattern = r"(\([0-9]+\))"
+    email = config.email_for_subscription.replace("@", "_").replace(".", "_")
+    custom_name = config.error_file
+    file_name = email + "_" + custom_name
+    file_counter = 0
+    while os.path.exists(file_name):
+        file_name = re.sub(pattern, "", file_name)
+        file_name_without_ext, ext = os.path.splitext(file_name)
+        file_counter += 1
+        file_name = file_name_without_ext + "({})".format(file_counter) + ext
+    with open(file_name, "w+") as f:
+        f.close()
+    global error_file_name
+    error_file_name = file_name
+
+
+def append_to_the_error_file(message, reason):
+    global error_file_name
+    with open(error_file_name, 'a') as f:
+        f.write("{}\t\t{}\n".format(message, reason))
+
+
 def main():
     url_list = get_urls_list_for_subscribe()
+    create_error_file()
     for url in url_list:
-        try_to_subscribe_url(url)
+        try:
+            init_driver()
+            try_to_subscribe_url(url)
+            driver.quit()
+        except TimeoutException as time_out:
+            logger.info(f"Timeout expired for URL : {url}")
+            logger.error(time_out, exc_info=True)
+            append_to_the_error_file(url, "Failed to load")
+        except Exception as e:
+            logger.error(e, exc_info=True)
+            append_to_the_error_file(url, "Unknown error")
+        finally:
+            time.sleep(1)
     # try_to_subscribe_url("https://frontendfront.com/")
 
 
