@@ -18,7 +18,8 @@ driver = None
 
 def init_driver():
     options = Options()
-    options.add_argument('--headless')
+    if config.headless:
+        options.add_argument('--headless')
     options.add_argument('--disable-gpu')
 
     global driver
@@ -35,32 +36,50 @@ def get_urls_list_for_subscribe():
     return url_list_to_subscribe
 
 
+def find_and_fill_all_emails():
+    email_fields = driver.find_elements_by_xpath("//input[@type='email']")
+    for email_field_item in email_fields:
+        try_to_fill_email(email_field_item)
+        time.sleep(1)
+
+
 def try_to_subscribe_url(url_item):
-    query = "//*[text()='Subscribe']"
     close_all_tabs()
     driver.get(url_item)
     try:
-        element = driver.find_element_by_xpath(query)
-        element.click()
+        find_and_fill_all_emails()
+        try_to_submit_form()
         wait_all_pages_has_loaded()
         if get_tab_count() == 2:
             driver.switch_to.window(driver.window_handles[1])
-        email_fields = driver.find_elements_by_xpath("//input[@type='email']")
-        for email_field_item in email_fields:
-            try_to_fill_email(email_field_item)
+        find_and_fill_all_emails()
         try_to_submit_form()
         time.sleep(1)
-        logger.info(f"Form submitted for URL: {url_item}")
-        if check_if_recaptcha_present():
-            logger.info("Sorry, recaptcha found.")
-            close_all_tabs()
+        if check_if_recaptcha_present(url_item):
+            return
+        else:
+            logger.info(f"Form submitted for URL: {url_item}")
     except NoSuchElementException as not_found:
         logger.info(f"Element not found for URL : {url_item}")
         logger.error(not_found, exc_info=True)
 
 
-def check_if_recaptcha_present():
-    return len(driver.find_elements_by_xpath("//*[@class='g-recaptcha']")) > 0
+def check_if_recaptcha_present(url):
+    try:
+        frame = driver.find_element_by_xpath('//iframe[contains(@src, "recaptcha")]')
+        if frame:
+            driver.switch_to.frame(frame)
+            captcha = driver.find_element_by_xpath("//*[@id='recaptcha-anchor']")
+            if captcha:
+                logger.info("Sorry, recaptcha found.")
+                close_all_tabs()
+                append_to_the_error_file(url, "Google captcha found")
+                driver.switch_to.default_content()
+                return True
+            driver.switch_to.default_content()
+        return False
+    except NoSuchElementException as no_captcha_found:
+        return False
 
 
 def page_has_loaded(window_name):
@@ -80,7 +99,8 @@ def wait_all_pages_has_loaded():
 
 def try_to_fill_email(email_input_element):
     try:
-        email_input_element.send_keys(config.email_for_subscription)
+        if email_input_element.get_attribute("value") == "":
+            email_input_element.send_keys(config.email_for_subscription)
     except ElementNotVisibleException as not_visible:
         logger.error(not_visible, exc_info=True)
     except Exception as e:
@@ -88,6 +108,17 @@ def try_to_fill_email(email_input_element):
 
 
 def try_to_submit_form():
+    elements = []
+    elements += driver.find_elements_by_xpath(
+        "//a[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),'subscribe')]")
+    elements += driver.find_elements_by_xpath(
+        "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),'subscribe')]")
+    # breakpoint()
+    for element in elements:
+        try:
+            element.click()
+        except Exception as e:
+            logger.error(e, exc_info=True)
     submit_element_list = driver.find_elements_by_xpath("//*[@type='submit']")
     for submit_element in submit_element_list:
         try:
@@ -145,7 +176,8 @@ def main():
             append_to_the_error_file(url, "Unknown error")
         finally:
             time.sleep(1)
-    # try_to_subscribe_url("https://frontendfront.com/")
+    # init_driver()
+    # try_to_subscribe_url("https://swiftnews.curated.co/")
 
 
 if __name__ == "__main__":
