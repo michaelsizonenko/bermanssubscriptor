@@ -1,5 +1,6 @@
 import logging
 
+logging.basicConfig(filename='debug.log')
 logger = logging.getLogger("main")
 
 logger.setLevel(level=logging.DEBUG)
