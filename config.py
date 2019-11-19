@@ -9,6 +9,7 @@ class Config:
     email_for_subscription = None
     page_load_timeout = 60  # seconds
     headless = False  # seconds
+    debug = False
 
     def __init__(self):
         with open("config.json") as f:
@@ -19,6 +20,7 @@ class Config:
             self.email_for_subscription = config_data.get("email_for_subscription")
             self.page_load_timeout = config_data.get("page_load_timeout")
             self.headless = config_data.get("headless")
+            self.debug = config_data.get("debug")
         if not self.error_file:
             self.error_file = "errors.txt"
 
