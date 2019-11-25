@@ -6,4 +6,5 @@
   "email_for_subscription": "test@test.com",
   "headless": false,
   "debug":  false,
+  "close_window_after_finish": false
 }

@@ -45,20 +45,23 @@ def find_and_fill_all_emails():
 
 def try_to_subscribe_url(url_item):
     close_all_tabs()
-    driver.get(url_item)
+    try:
+        driver.get(url_item)
+    except TimeoutException as time_out:
+        pass
     try:
         find_and_fill_all_emails()
         try_to_submit_form()
+        logger.info("Submited form for {}".format(url_item))
         wait_all_pages_has_loaded()
         if get_tab_count() == 2:
             driver.switch_to.window(driver.window_handles[1])
-        find_and_fill_all_emails()
-        try_to_submit_form()
+            find_and_fill_all_emails()
+            try_to_submit_form()
+            logger.info("Submitted for on a new openned tab {}".format(url_item))
         time.sleep(1)
         if check_if_recaptcha_present(url_item):
             return
-        else:
-            logger.info(f"Form submitted for URL: {url_item}")
     except NoSuchElementException as not_found:
         logger.info(f"Element not found for URL : {url_item}")
         logger.error(not_found, exc_info=True)
@@ -83,8 +86,7 @@ def check_if_recaptcha_present(url):
 
 
 def page_has_loaded(window_name):
-    # self.log.info("Checking if {} page is loaded.".format(self.driver.current_url))
-    logger.info("Checking if {} page is loaded.".format(window_name))
+    logger.debug("Checking if {} page is loaded.".format(window_name))
     driver.switch_to.window(window_name)
     page_state = driver.execute_script('return document.readyState;')
     return page_state == 'complete'
@@ -101,30 +103,36 @@ def try_to_fill_email(email_input_element):
     try:
         if email_input_element.get_attribute("value") == "":
             email_input_element.send_keys(config.email_for_subscription)
-    except ElementNotVisibleException as not_visible:
-        logger.error(not_visible, exc_info=True)
     except Exception as e:
-        logger.error(e, exc_info=True)
+        pass
 
 
 def try_to_submit_form():
-    elements = []
-    elements += driver.find_elements_by_xpath(
-        "//a[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),'subscribe')]")
-    elements += driver.find_elements_by_xpath(
-        "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),'subscribe')]")
-    # breakpoint()
-    for element in elements:
+    try:
+        email_input_list = driver.find_element_by_xpath("//form//input[@type='email']")
+        submit = email_input_list[0].find_element_by_xpath(".//ancestor::form").find_element_by_xpath(".//*[@type='submit']")
+        submit.submit()
+    except Exception as e:
         try:
-            element.click()
+            elements = []
+            elements += driver.find_elements_by_xpath(
+                "//a[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),'subscribe')]")
+            elements += driver.find_elements_by_xpath(
+                "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),'subscribe')]")
+            # breakpoint()
+            for element in elements:
+                try:
+                    element.click()
+                except Exception as e:
+                    pass
         except Exception as e:
-            logger.error(e, exc_info=True)
-    submit_element_list = driver.find_elements_by_xpath("//*[@type='submit']")
-    for submit_element in submit_element_list:
-        try:
-            submit_element.submit()
-        except Exception as e:
-            logger.error(e, exc_info=True)
+            pass
+        submit_element_list = driver.find_elements_by_xpath("//*[@type='submit']")
+        for submit_element in submit_element_list:
+            try:
+                submit_element.submit()
+            except Exception as e:
+                pass
 
 
 def get_tab_count():
@@ -166,10 +174,10 @@ def main():
         try:
             init_driver()
             try_to_subscribe_url(url)
-            driver.quit()
+            if config.close_window_after_finish:
+                driver.quit()
         except TimeoutException as time_out:
             logger.info(f"Timeout expired for URL : {url}")
-            logger.error(time_out, exc_info=True)
             append_to_the_error_file(url, "Failed to load")
         except Exception as e:
             logger.error(e, exc_info=True)

@@ -21,6 +21,7 @@ class Config:
             self.page_load_timeout = config_data.get("page_load_timeout")
             self.headless = config_data.get("headless")
             self.debug = config_data.get("debug")
+            self.close_window_after_finish = config_data.get("close_window_after_finish")
         if not self.error_file:
             self.error_file = "errors.txt"
 
